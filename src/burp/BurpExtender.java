@@ -4,19 +4,26 @@ import java.awt.Component;
 import java.io.PrintWriter;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 
+import base.FindUrlAction;
+import base.Proxy;
+import org.apache.commons.lang3.StringUtils;
+
+import com.bit4woo.utilbox.burp.HelperPlus;
 import com.google.gson.Gson;
 
-import config.ConfigManager;
 import config.ConfigEntry;
+import config.ConfigManager;
 import config.ConfigTable;
 import config.ConfigTableModel;
 import config.GUI;
+import config.ProcessManager;
 import knife.AddHostToScopeMenu;
 import knife.ChangeToUploadRequest;
 import knife.ChunkedEncodingMenu;
@@ -26,19 +33,17 @@ import knife.CustomPayloadMenu;
 import knife.DismissCancelMenu;
 import knife.DismissMenu;
 import knife.DoActiveScanMenu;
-import knife.DoPortScanMenu;
 import knife.DownloadResponseMenu;
 import knife.FindUrlAndRequest;
 import knife.OpenWithBrowserMenu;
-import knife.RunSQLMapMenu;
+import knife.RunCmdMenu;
 import knife.SetCookieMenu;
 import knife.SetCookieWithHistoryMenu;
 import knife.UpdateCookieMenu;
 import knife.UpdateCookieWithHistoryMenu;
 import knife.UpdateHeaderMenu;
+import messageTab.Info.InfoTabFactory;
 import messageTab.U2C.ChineseTabFactory;
-import config.ProcessManager;
-import org.apache.commons.lang3.StringUtils;
 
 public class BurpExtender extends GUI implements IBurpExtender, IContextMenuFactory, ITab, IHttpListener, IProxyListener, IExtensionStateListener {
 
@@ -48,28 +53,32 @@ public class BurpExtender extends GUI implements IBurpExtender, IContextMenuFact
     private static final long serialVersionUID = 1L;
 
     public static IBurpExtenderCallbacks callbacks;
-    public IExtensionHelpers helpers;
+    public static IExtensionHelpers helpers;
+    private static HelperPlus helperPlus;
+
+
     public static PrintWriter stdout;
     public static PrintWriter stderr;
     public IContextMenuInvocation invocation;
+
 
     public static String ExtensionName = "Knife";
     public static String Version = bsh.This.class.getPackage().getImplementationVersion();
     public static String Author = "by bit4woo";
     public static String github = "https://github.com/bit4woo/knife";
 
-    public static String CurrentProxy = "";
-
     @Override
     public void registerExtenderCallbacks(IBurpExtenderCallbacks callbacks) {
         BurpExtender.callbacks = callbacks;
-        this.helpers = callbacks.getHelpers();
+        BurpExtender.helpers = callbacks.getHelpers();
+        BurpExtender.helperPlus = new HelperPlus(helpers);
+
         flushStd();
         BurpExtender.stdout.println(getFullExtensionName());
         BurpExtender.stdout.println(github);
 
-        table = new ConfigTable(new ConfigTableModel());
-        configPanel.setViewportView(table);
+        configTable = new ConfigTable(new ConfigTableModel());
+        configPanel.setViewportView(configTable);
 
         String content = callbacks.loadExtensionSetting("knifeconfig");
         if (StringUtils.isEmpty(content)) {
@@ -80,11 +89,13 @@ public class BurpExtender extends GUI implements IBurpExtender, IContextMenuFact
         showToUI(configManager);
 
         ChineseTabFactory chntabFactory = new ChineseTabFactory(null, false, helpers, callbacks);
+        InfoTabFactory infotabFactory = new InfoTabFactory(null, false, helpers, callbacks);
 
         //各项数据初始化完成后在进行这些注册操作，避免插件加载时的空指针异常
         callbacks.setExtensionName(getFullExtensionName());
         callbacks.registerContextMenuFactory(this);// for menus
         callbacks.registerMessageEditorTabFactory(chntabFactory);// for Chinese
+        callbacks.registerMessageEditorTabFactory(infotabFactory);// for sensitive info
         callbacks.addSuiteTab(BurpExtender.this);
         callbacks.registerHttpListener(this);
         callbacks.registerProxyListener(this);
@@ -143,9 +154,8 @@ public class BurpExtender extends GUI implements IBurpExtender, IContextMenuFact
 
         //扫描攻击相关
         menu_item_list.add(new AddHostToScopeMenu(this));
-        menu_item_list.add(new RunSQLMapMenu(this));
+        menu_item_list.add(new RunCmdMenu(this));
         menu_item_list.add(new DoActiveScanMenu(this));
-        menu_item_list.add(new DoPortScanMenu(this));
 
 
         //不太常用的
@@ -170,7 +180,7 @@ public class BurpExtender extends GUI implements IBurpExtender, IContextMenuFact
             }
         }
 
-        String oneMenu = tableModel.getConfigValueByKey("Put_MenuItems_In_One_Menu");
+        String oneMenu = configTableModel.getConfigValueByKey("Put_MenuItems_In_One_Menu");
         if (oneMenu != null) {
             ArrayList<JMenuItem> Knife = new ArrayList<JMenuItem>();
             JMenu knifeMenu = new JMenu("^_^ Knife");
@@ -204,7 +214,7 @@ public class BurpExtender extends GUI implements IBurpExtender, IContextMenuFact
     @Override
     public String initConfig() {
         configManager = new ConfigManager("default");
-        tableModel = new ConfigTableModel();
+        configTableModel = new ConfigTableModel();
         return getAllConfig();
     }
 
@@ -213,14 +223,14 @@ public class BurpExtender extends GUI implements IBurpExtender, IContextMenuFact
     public void processProxyMessage(boolean messageIsRequest, IInterceptedProxyMessage message) {
         //processHttpMessage(IBurpExtenderCallbacks.TOOL_PROXY,true,message.getMessageInfo());
         //same action will be executed twice! if call processHttpMessage() here.
-        if (StringUtils.isEmpty(CurrentProxy)) {
+        if (FindUrlAction.CurrentProxy == null) {
             //为了知道burp当前监听的接口。供“find url and request”菜单使用
-            CurrentProxy = message.getListenerInterface();
+            FindUrlAction.CurrentProxy = new Proxy(message.getListenerInterface());
         }
         IHttpRequestResponse messageInfo = message.getMessageInfo();
         List<ConfigEntry> rules = ProcessManager.getAllActionRules();
-        for (ConfigEntry  rule:rules){
-            rule.takeProxyAction(messageIsRequest,message);
+        for (ConfigEntry rule : rules) {
+            rule.takeProxyAction(messageIsRequest, message);
         }
 
         if (messageIsRequest) {
@@ -262,6 +272,11 @@ public class BurpExtender extends GUI implements IBurpExtender, IContextMenuFact
 
     public static IBurpExtenderCallbacks getCallbacks() {
         return callbacks;
+    }
+
+
+    public static HelperPlus getHelperPlus() {
+        return helperPlus;
     }
 
 

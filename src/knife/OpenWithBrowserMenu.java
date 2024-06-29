@@ -8,14 +8,15 @@ import java.net.URL;
 
 import javax.swing.JMenuItem;
 
+import com.bit4woo.utilbox.burp.HelperPlus;
+import com.bit4woo.utilbox.utils.CharsetUtils;
+import com.bit4woo.utilbox.utils.SystemUtils;
+
 import burp.BurpExtender;
-import burp.Getter;
 import burp.IBurpExtenderCallbacks;
 import burp.IContextMenuInvocation;
 import burp.IExtensionHelpers;
 import burp.IHttpRequestResponse;
-import burp.Utils;
-import messageTab.U2C.CharSetHelper;
 
 public class OpenWithBrowserMenu extends JMenuItem {
 	/**
@@ -50,7 +51,7 @@ class OpenWithBrowser_Action implements ActionListener{
 	@Override
 	public void actionPerformed(ActionEvent event) {
 		try{
-			String browserPath = burp.tableModel.getConfigValueByKey("browserPath");
+			String browserPath = burp.getConfigTableModel().getConfigValueByKey("browserPath");
 			if (browserPath!=null && new File(browserPath).exists() && new File(browserPath).isFile()) {
 
 			}else {//when no browserPath in config, the value will be null
@@ -73,24 +74,21 @@ class OpenWithBrowser_Action implements ActionListener{
 				if (selectedUrl.length()>10) {// http://a.cn
 					stdout.println();
 					stdout.println("//////////open URL: "+selectedUrl+" //////////");
-					Utils.browserOpen(selectedUrl,browserPath);
+					SystemUtils.browserOpen(selectedUrl,browserPath);
 					//stdout.println(selectedUrl);
 				}else {
 					String hosturl =helpers.analyzeRequest(messages[0]).getUrl().toString();
-					Utils.browserOpen(hosturl,browserPath);
+					SystemUtils.browserOpen(hosturl,browserPath);
 				}
 			}else if (messages.length > 1 &&  messages.length <=50) {
 				for(IHttpRequestResponse message:messages) {
-					Getter getter = new Getter(helpers);
+					HelperPlus getter = new HelperPlus(helpers);
 					URL targetShortUrl = getter.getFullURL(message);
-					Utils.browserOpen(targetShortUrl,browserPath);
+					SystemUtils.browserOpen(targetShortUrl,browserPath);
 				}
 			}else {
 				stderr.println("Please Select Less URLs to Open");
 			}
-		}
-		catch (java.net.URISyntaxException e) {
-			stderr.println(e.getMessage());
 		}
 		catch (Exception e1)
 		{
@@ -192,7 +190,7 @@ class OpenWithBrowser_Action implements ActionListener{
 			//burp进行的byte和string之间的转换，没有考虑特定的编码，是一刀切的方式，所以将index用于byte序列上，就不能正确对应。
 
 			if(source!=null && selectedIndex !=null && selectedIndex[1]-selectedIndex[0]>=3) {
-				String originalCharSet = CharSetHelper.detectCharset(source);
+				String originalCharSet = CharsetUtils.detectCharset(source);
 				String text;
 				try {
 					text = new String(source,originalCharSet);
@@ -231,7 +229,7 @@ class OpenWithBrowser_Action implements ActionListener{
 			
 		}else{//没有斜杠的情况。<link href="www.microsoft.com">这只会被当成目标，不会被当成域名
 			
-			Getter getter = new Getter(BurpExtender.callbacks.getHelpers());
+			HelperPlus getter = new HelperPlus(BurpExtender.callbacks.getHelpers());
 			String fullUrl = getter.getFullURL(message).toString().split("\\?")[0];
 			int indexOfLastSlash = fullUrl.lastIndexOf("/");//截取的内容不不包含当前index对应的元素
 			return fullUrl.substring(0,indexOfLastSlash+1)+url;

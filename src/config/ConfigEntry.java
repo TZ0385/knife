@@ -1,10 +1,7 @@
 package config;
 
-import burp.*;
-import com.google.gson.Gson;
-import org.apache.commons.lang3.StringUtils;
-import runcmd.MessagePart;
-import runcmd.TextUtils;
+import static burp.BurpExtender.isInCheckBoxScope;
+import static runcmd.MessagePart.getValueByPartType;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -13,8 +10,17 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
 
-import static burp.BurpExtender.isInCheckBoxScope;
-import static runcmd.MessagePart.getValueByPartType;
+import org.apache.commons.lang3.StringUtils;
+
+import com.bit4woo.utilbox.burp.HelperPlus;
+import com.bit4woo.utilbox.utils.TextUtils;
+import com.google.gson.Gson;
+
+import burp.BurpExtender;
+import burp.IBurpExtenderCallbacks;
+import burp.IHttpRequestResponse;
+import burp.IInterceptedProxyMessage;
+import runcmd.MessagePart;
 
 public class ConfigEntry {
 
@@ -61,7 +67,6 @@ public class ConfigEntry {
     public static final String Config_Custom_Payload_Base64 = "Config_Custom_Payload_Base64";
     public static final String Config_Basic_Variable = "Config_Basic_Variable";
     public static final String Config_Chunked_Variable = "Config_Chunked_Variable";
-    public static final String Config_Proxy_Variable = "Config_Proxy_Variable";
 
     private static final String Config_ = "Config_";
 
@@ -105,11 +110,15 @@ public class ConfigEntry {
         switch (type) {
             case Action_Add_Or_Replace_Header:
             case Action_Append_To_header_value:
-                this.comment = Scope_Comment_checkbox + this.comment;
+                if (!comment.contains(Scope_Comment_checkbox)) {
+                    this.comment = Scope_Comment_checkbox + this.comment;
+                }
                 break;
             case Action_Remove_From_Headers:
             case Action_Forward_And_Hide_Options:
-                this.comment = Scope_Comment_Global + this.comment;
+                if (!comment.contains(Scope_Comment_Global)) {
+                    this.comment = Scope_Comment_Global + this.comment;
+                }
                 break;
             default:
                 this.comment = this.comment.replaceAll(Pattern.quote(Scope_Comment_checkbox), "");
@@ -139,6 +148,7 @@ public class ConfigEntry {
 
     public void setType(String type) {
         this.type = type;
+        autoComment(type);
     }
 
     public boolean isEnable() {
@@ -243,6 +253,9 @@ public class ConfigEntry {
             if (f.getName().startsWith(Config_) && Modifier.isPublic(f.getModifiers())) {
                 fieldList.add(f.getName());
             }
+            if (f.getName().startsWith(Run_External_Cmd) && Modifier.isPublic(f.getModifiers())) {
+                fieldList.add(f.getName());
+            }
         }
         String[] array = new String[fieldList.size()];
         fieldList.toArray(array); // fill the array
@@ -250,9 +263,14 @@ public class ConfigEntry {
     }
 
     public boolean isInRuleScope(int toolFlag, IHttpRequestResponse messageInfo) {
-        HelperPlus getter = new HelperPlus(BurpExtender.getCallbacks().getHelpers());
-        String baseUrl = HelperPlus.getShortURL(messageInfo).toString();
-        String url = getter.getFullURL(messageInfo).toString();
+        HelperPlus getter = BurpExtender.getHelperPlus();
+        String baseUrl = HelperPlus.getBaseURL(messageInfo).toString();
+        String url;
+		try {
+			url = getter.getFullURL(messageInfo).toString();
+		} catch (Exception e) {
+			url = baseUrl;
+		}
         String host = HelperPlus.getHost(messageInfo);
         String configkey = getKey();
 
@@ -294,27 +312,33 @@ public class ConfigEntry {
         return false;
     }
 
-    public String getFinalValue(boolean isRequest, IHttpRequestResponse messageInfo) {
+    public String getFinalValue(IHttpRequestResponse messageInfo) {
+        IHttpRequestResponse[] messageInfos = {messageInfo};
+        return getFinalValue(messageInfos);
+    }
+
+    public String getFinalValue(IHttpRequestResponse[] messageInfos) {
         String valueStr = getValue();
         if (StringUtils.isEmpty(valueStr)) {
             return valueStr;
         }
 
-        List<String> items = TextUtils.grepWithRegex(valueStr, "\\{.*\\}");
+        List<String> items = TextUtils.grepWithRegex(valueStr, "\\{.*?\\}");
 
         List<String> httpParts = MessagePart.getPartList();
-        List<ConfigEntry> varConfigs = GUI.tableModel.getBasicConfigVars();
+        List<ConfigEntry> varConfigs = GUI.configTableModel.getBasicConfigVars();
 
         for (String item : items) {
             String partType = item.replace("{", "").replace("}", "");
             for (String part : httpParts) {
                 if (partType.equalsIgnoreCase(part)) {
-                    valueStr = valueStr.replaceAll(Pattern.quote(item), getValueByPartType(isRequest, messageInfo, partType));
+                    String value = getValueByPartType(messageInfos, partType);
+                    valueStr = valueStr.replace(item, value);
                 }
             }
             for (ConfigEntry config : varConfigs) {
                 if (partType.equalsIgnoreCase(config.getKey())) {
-                    valueStr = valueStr.replaceAll(Pattern.quote(item), config.getValue());
+                    valueStr = valueStr.replace(item, config.getValue());
                 }
             }
         }
@@ -388,7 +412,7 @@ public class ConfigEntry {
         byte[] oldRequest = messageInfo.getRequest();
 
         String configKey = getKey();
-        String configValue = getFinalValue(messageIsRequest, messageInfo);
+        String configValue = getFinalValue(messageInfo);
 
         HelperPlus getter = new HelperPlus(BurpExtender.callbacks.getHelpers());
 
@@ -396,20 +420,20 @@ public class ConfigEntry {
             switch (type) {
                 case Action_Add_Or_Replace_Header:
                 case Action_If_Base_URL_Matches_Add_Or_Replace_Header:
-                    getter.addOrUpdateHeader(messageIsRequest, messageInfo, configKey, configValue);
+                    getter.addOrUpdateHeader(true, messageInfo, configKey, configValue);
                     //注意，单个分支应该break。
                     break;
                 case Action_Append_To_header_value:
                 case Action_If_Base_URL_Matches_Append_To_header_value:
-                    String oldValue = getter.getHeaderValueOf(messageIsRequest, messageInfo, configKey);
+                    String oldValue = getter.getHeaderValueOf(true, messageInfo, configKey);
                     if (oldValue == null) {
                         oldValue = "";
                     }
-                    getter.addOrUpdateHeader(messageIsRequest, messageInfo, configKey, oldValue + configValue);
+                    getter.addOrUpdateHeader(true, messageInfo, configKey, oldValue + configValue);
                     break;
                 case Action_Remove_From_Headers:
                 case Action_If_Base_URL_Matches_Remove_From_Headers:
-                    getter.removeHeader(messageIsRequest, messageInfo, configKey);
+                    getter.removeHeader(true, messageInfo, configKey);
                     break;
             }
         }

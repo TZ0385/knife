@@ -9,15 +9,17 @@ import java.util.List;
 
 import javax.swing.JMenuItem;
 
+import org.apache.commons.lang3.StringUtils;
+
+import com.bit4woo.utilbox.burp.HelperPlus;
+import com.bit4woo.utilbox.utils.SystemUtils;
+import com.bit4woo.utilbox.utils.UrlUtils;
+
 import burp.BurpExtender;
-import burp.HelperPlus;
 import burp.IBurpExtenderCallbacks;
 import burp.IContextMenuInvocation;
 import burp.IExtensionHelpers;
 import burp.IHttpRequestResponse;
-import burp.SystemUtils;
-import burp.Utils;
-import org.apache.commons.lang3.StringUtils;
 
 
 public class CopyJsOfThisSite extends JMenuItem {
@@ -77,25 +79,26 @@ class CopyJsOfThisSite_Action implements ActionListener{
 
 			/**
 			 * 根据当前web的baseUrl找JS，特征就是referer以它开头
-			 * @param currentBaseUrl
+			 * @param message
 			 * @return 
 			 * @return
 			 */
 			public String findUrls(IHttpRequestResponse message){
 				HelperPlus getter = new HelperPlus(helpers);
 
-				List<String> JsCode = new ArrayList<String>();
+				List<String> JsCode = new ArrayList<>();
 				String current_referUrl = getter.getHeaderValueOf(true,message,"Referer");
 				String current_fullUrl = getter.getFullURL(message).toString();
 
 
 				String siteBaseUrl = null;
 				if (current_fullUrl != null) {
-					siteBaseUrl = Utils.getBaseUrl(current_referUrl);
+					siteBaseUrl = UrlUtils.getBaseUrl(current_referUrl);
 				}
-				if (StringUtils.isEmpty(siteBaseUrl)) {
-					siteBaseUrl = Utils.getBaseUrl(current_fullUrl);
+				if (siteBaseUrl == null) {
+					siteBaseUrl = UrlUtils.getBaseUrl(current_fullUrl);
 				}
+
 				if (StringUtils.isEmpty(siteBaseUrl)){
 					return "";
 				}
@@ -112,8 +115,8 @@ class CopyJsOfThisSite_Action implements ActionListener{
 						continue;
 					}
 
-					if (referUrl.toLowerCase().startsWith(siteBaseUrl.toLowerCase()+"/")) {
-						byte[] respBody = getter.getBody(false, item);
+					if (referUrl.toLowerCase().startsWith(siteBaseUrl.toLowerCase())) {
+						byte[] respBody = HelperPlus.getBody(false, item);
 						String body = new String(respBody);
 						JsCode.add(url.toString());
 						JsCode.add(body);

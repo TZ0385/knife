@@ -6,7 +6,7 @@
 	</properties>
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.bit4woo.burp</groupId>
-	<version>2.2</version>
+	<version>2.3</version>
 
 	<repositories>
 		<repository>
@@ -52,6 +52,7 @@
 					<target>1.8</target>
 					<excludes>
 						<!-- 编译时排除Deprecated包及下面的资源 -->
+						<exclude>**/Deprecated/**</exclude>
 						<exclude>**/Requester/**</exclude>
 						<exclude>**/test/**</exclude>
 					</excludes>
@@ -81,13 +82,18 @@
 			<version>1.7.22</version>
 		</dependency>
 
-		<!-- https://github.com/bit4woo/burp-api-common -->
+		<!-- https://github.com/bit4woo/java_utilbox -->
 		<dependency>
 			<groupId>com.github.bit4woo</groupId>
-			<artifactId>burp-api-common</artifactId>
-			<version>master-SNAPSHOT</version>
+			<artifactId>java_utilbox</artifactId>
+			<version>main-SNAPSHOT</version>
 		</dependency>
-
+		<!--本地引用-->
+<!--		<dependency>
+			<groupId>com.bit4woo.utilbox</groupId>
+			<artifactId>java-utilbox</artifactId>
+			<version>0.1</version>
+		</dependency>-->
 		<!-- https://mvnrepository.com/artifact/commons-codec/commons-codec <dependency> 
 			<groupId>commons-codec</groupId> <artifactId>commons-codec</artifactId> <version>1.11</version> 
 			</dependency> -->
@@ -118,7 +124,7 @@
 		<dependency>
 			<groupId>commons-io</groupId>
 			<artifactId>commons-io</artifactId>
-			<version>2.7</version>
+			<version>2.16.1</version>
 		</dependency>
 
 		<!-- https://mvnrepository.com/artifact/com.google.code.gson/gson -->
@@ -156,6 +162,13 @@
 			<groupId>commons-validator</groupId>
 			<artifactId>commons-validator</artifactId>
 			<version>1.8.0</version>
+		</dependency>
+
+		<!-- https://mvnrepository.com/artifact/com.fifesoft/rsyntaxtextarea -->
+		<dependency>
+			<groupId>com.fifesoft</groupId>
+			<artifactId>rsyntaxtextarea</artifactId>
+			<version>3.4.0</version>
 		</dependency>
 
 

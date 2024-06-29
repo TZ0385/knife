@@ -8,6 +8,8 @@ import java.util.regex.MatchResult;
 import burp.*;
 import org.apache.commons.lang3.StringUtils;
 
+import com.bit4woo.utilbox.burp.HelperPlus;
+
 public class ProcessManager {
 
     //////////////////////////////////////////common methods for cookie handle///////////////////////////////
@@ -44,21 +46,21 @@ public class ProcessManager {
     }
 
     public static String getLatestHeaderFromHistory(IHttpRequestResponse messageInfo, String headerName) {
-        String sourceshorturl = HelperPlus.getShortURL(messageInfo).toString();
+        String sourceshorturl = HelperPlus.getBaseURL(messageInfo).toString();
         return getLatestHeaderFromHistory(sourceshorturl, headerName);
     }
 
     public static String getLatestHeaderFromHistory(String shortUrl, String headerName) {
         //还是草粉师傅说得对，直接从history里面拿最好
 
-        shortUrl = HelperPlus.removeDefaultPort(shortUrl);//url格式标准化，以保证后面比较的准确性。
+        shortUrl = HelperPlus.removeUrlDefaultPort(shortUrl);//url格式标准化，以保证后面比较的准确性。
         IHttpRequestResponse[] historyMessages = BurpExtender.callbacks.getProxyHistory();
         HelperPlus getter = new HelperPlus(BurpExtender.callbacks.getHelpers());
 
         for (int i = historyMessages.length - 1; i >= 0; i--) {
             IHttpRequestResponse historyMessage = historyMessages[i];
-            String hisShortUrl = HelperPlus.getShortURL(historyMessage).toString();
-            hisShortUrl = HelperPlus.removeDefaultPort(hisShortUrl);
+            String hisShortUrl = HelperPlus.getBaseURL(historyMessage).toString();
+            hisShortUrl = HelperPlus.removeUrlDefaultPort(hisShortUrl);
             if (hisShortUrl.equalsIgnoreCase(shortUrl)) {
                 String headerLine = getter.getHeaderLine(true, historyMessage, headerName);
                 return headerLine;
@@ -77,14 +79,14 @@ public class ProcessManager {
     public static String getLatestHeaderFromSiteMap(String shortUrl, String headerName) {
         //还是草粉师傅说得对，直接从history里面拿最好
 
-        shortUrl = HelperPlus.removeDefaultPort(shortUrl);//url格式标准化，以保证后面比较的准确性。
+        shortUrl = HelperPlus.removeUrlDefaultPort(shortUrl);//url格式标准化，以保证后面比较的准确性。
         IHttpRequestResponse[] historyMessages = BurpExtender.callbacks.getSiteMap(shortUrl);
         HelperPlus getter = new HelperPlus(BurpExtender.callbacks.getHelpers());
 
         for (int i = historyMessages.length - 1; i >= 0; i--) {
             IHttpRequestResponse historyMessage = historyMessages[i];
-            String hisShortUrl = HelperPlus.getShortURL(historyMessage).toString();
-            hisShortUrl = HelperPlus.removeDefaultPort(hisShortUrl);
+            String hisShortUrl = HelperPlus.getBaseURL(historyMessage).toString();
+            hisShortUrl = HelperPlus.removeUrlDefaultPort(hisShortUrl);
             if (hisShortUrl.equalsIgnoreCase(shortUrl)) {
                 String headerLine = getter.getHeaderLine(true, historyMessage, headerName);
                 return headerLine;
@@ -182,10 +184,10 @@ public class ProcessManager {
 
     public static void addHandleRule(IHttpRequestResponse[] messages, String headerLine) {
         for (IHttpRequestResponse message : messages) {
-            String targetShortUrl = HelperPlus.getShortURL(message).toString();
+            String targetShortUrl = HelperPlus.getBaseURL(message).toString();
             ConfigEntry rule = new ConfigEntry(targetShortUrl, headerLine, ConfigEntry.Action_If_Base_URL_Matches_Add_Or_Replace_Header, true);
             delSameConditionRule(rule);
-            GUI.tableModel.addNewConfigEntry(rule);
+            GUI.configTableModel.addNewConfigEntry(rule);
             BurpExtender.getStdout().println("new handle rule added: " + targetShortUrl + " : " + headerLine);
         }
     }
@@ -204,7 +206,7 @@ public class ProcessManager {
                 String header = rule.getValue().split(":")[0];
                 String newHeader = newRule.getValue().split(":")[0];
                 if (header.equals(newHeader)) {
-                    GUI.tableModel.removeConfigEntry(rule);
+                    GUI.configTableModel.removeConfigEntry(rule);
                 }
             }
         }
@@ -213,7 +215,7 @@ public class ProcessManager {
     public static List<ConfigEntry> GetHeaderHandleWithIfRules() {
         List<ConfigEntry> result = new ArrayList<>();
 
-        List<ConfigEntry> entries = GUI.tableModel.getConfigEntries();
+        List<ConfigEntry> entries = GUI.configTableModel.getConfigEntries();
         for (ConfigEntry entry : entries) {
             if (entry.isHeaderHandleWithIfActionType()) {
                 if (entry.isEnable()) {
@@ -231,7 +233,7 @@ public class ProcessManager {
      */
     public static List<ConfigEntry> getEditActionRules() {
         List<ConfigEntry> result = new ArrayList<>();
-        List<ConfigEntry> entries = GUI.tableModel.getConfigEntries();
+        List<ConfigEntry> entries = GUI.configTableModel.getConfigEntries();
         for (ConfigEntry entry : entries) {
             if (entry.isActionType()) {
                 if (!entry.isDropOrForwardActionType()) {
@@ -269,9 +271,9 @@ public class ProcessManager {
                         configKey = keyword;
                         break;
                 }
-                if (StringUtils.isNotEmpty(keyword)) {
+                if (StringUtils.isNotEmpty(configKey)) {
                     delSameConditionRule(configKey);
-                    GUI.tableModel.addNewConfigEntry(new ConfigEntry(configKey, "", action, true));
+                    GUI.configTableModel.addNewConfigEntry(new ConfigEntry(configKey, "", action, true));
                 }
             }
         }
@@ -285,7 +287,7 @@ public class ProcessManager {
             List<ConfigEntry> rules = GetAllDropOrForwardRules();
             for (ConfigEntry rule : rules) {
                 if (rule.ifNeedTakeAction(toolFlag, message)) {
-                    GUI.tableModel.removeConfigEntry(rule);
+                    GUI.configTableModel.removeConfigEntry(rule);
                 }
             }
         }
@@ -299,14 +301,14 @@ public class ProcessManager {
         for (int i = rules.size() - 1; i >= 0; i--) {
             ConfigEntry rule = rules.get(i);
             if (rule.getKey().equals(configKey)) {
-                GUI.tableModel.removeConfigEntry(rule);
+                GUI.configTableModel.removeConfigEntry(rule);
             }
         }
     }
 
     public static List<ConfigEntry> GetAllDropOrForwardRules() {
         List<ConfigEntry> result = new ArrayList<>();
-        List<ConfigEntry> entries = GUI.tableModel.getConfigEntries();
+        List<ConfigEntry> entries = GUI.configTableModel.getConfigEntries();
         for (ConfigEntry entry : entries) {
             if (entry.isDropOrForwardActionType()) {
                 if (entry.isEnable()) {
@@ -324,7 +326,7 @@ public class ProcessManager {
      */
     public static List<ConfigEntry> getAllActionRules() {
         List<ConfigEntry> result = new ArrayList<>();
-        List<ConfigEntry> entries = GUI.tableModel.getConfigEntries();
+        List<ConfigEntry> entries = GUI.configTableModel.getConfigEntries();
         for (ConfigEntry entry : entries) {
             if (entry.isActionType() && entry.isEnable()) {
                 result.add(entry);
@@ -336,7 +338,7 @@ public class ProcessManager {
 
     public static void doChunk(boolean messageIsRequest, IHttpRequestResponse message) {
 
-        ConfigEntry rule = GUI.tableModel.getConfigByKey("Chunked-AutoEnable");
+        ConfigEntry rule = GUI.configTableModel.getConfigByKey("Chunked-AutoEnable");
 
         if (rule != null) {
             HelperPlus getter = new HelperPlus(BurpExtender.callbacks.getHelpers());
@@ -344,10 +346,10 @@ public class ProcessManager {
             byte[] oldBody = getter.getBody(messageIsRequest, message);
             try {
                 boolean useComment = false;
-                if (GUI.tableModel.getConfigValueByKey("Chunked-UseComment") != null) {
+                if (GUI.configTableModel.getConfigValueByKey("Chunked-UseComment") != null) {
                     useComment = true;
                 }
-                String lenStr = GUI.tableModel.getConfigValueByKey("Chunked-Length");
+                String lenStr = GUI.configTableModel.getConfigValueByKey("Chunked-Length");
                 int len = 10;
                 if (lenStr != null) {
                     len = Integer.parseInt(lenStr);
